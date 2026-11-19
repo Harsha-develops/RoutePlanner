@@ -107,16 +107,18 @@ public class RoutePlannerServer {
             }
             case "compare": {
                 int s = integer(p, "start"), t = integer(p, "end");
-                List<Object> rows = new ArrayList<>(); Algorithms.Result selected = null;
+                List<Object> rows = new ArrayList<>();
                 String[] ids = {"dijkstra", "astar", "bidirectional"};
                 for (String id : ids) {
                     Algorithms.Result r = null; long begin = System.nanoTime();
                     for (int i = 0; i < 200; i++) r = run(s, t, id);
-                    Map<String, Object> row = new LinkedHashMap<>(); row.put("name", r.name); row.put("explored", r.explored.size()); row.put("distance", r.found() ? km(r.cost) : "—"); row.put("time", ((System.nanoTime() - begin) / 200 / 1000) + " μs"); rows.add(row);
-                    if (id.equals("astar")) selected = r;
+                    Map<String, Object> row = new LinkedHashMap<>(); row.put("name", r.name); row.put("explored", r.explored.size()); row.put("distance", r.found() ? km(r.cost) : "—"); row.put("time", ((System.nanoTime() - begin) / 200 / 1000) + " μs");
+                    row.put("path", r.path == null ? Collections.emptyList() : new ArrayList<>(r.path));
+                    List<String> pathNames = new ArrayList<>();
+                    if (r.path != null) for (int node : r.path) pathNames.add(graph.nodes.get(node).name);
+                    row.put("pathNames", pathNames); row.put("exploredNodes", new ArrayList<>(r.explored)); rows.add(row);
                 }
-                result.put("title", "Algorithm comparison"); result.put("message", "All three algorithms find the same optimal distance. The comparison shows how many nodes each one explores."); result.put("rows", rows);
-                if (selected != null) { result.put("exploredNodes", selected.explored); result.put("path", selected.path == null ? Collections.emptyList() : selected.path); }
+                result.put("title", "Algorithm comparison"); result.put("message", "Each algorithm computed its own route. Shortest-path algorithms can return the same path when it is the unique shortest route."); result.put("rows", rows);
                 break;
             }
             case "tsp": {

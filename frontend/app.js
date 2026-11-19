@@ -3,8 +3,36 @@ async function api(path,body){const r=await fetch(path,body?{method:'POST',heade
 function selection(){if(!state)return;document.getElementById('startName').textContent=start<0?'Choose a place':state.nodes[start].name;document.getElementById('endName').textContent=end<0?'Choose a place':state.nodes[end].name;document.getElementById('count').textContent=stops.length;document.getElementById('stopNames').textContent=stops.length?' · '+stops.map(i=>state.nodes[i].name).join(', '):'';document.getElementById('mst').textContent=state.showMst?'Hide minimum tree':'Show minimum tree';const modeButton=document.getElementById('stopMode');modeButton.disabled=start<0||end<0;modeButton.classList.toggle('active',stopMode);modeButton.textContent=stopMode?'Done adding stops ('+stops.length+')':'Add trip stops'}
 function setState(s){state=s;document.getElementById('summary').textContent=s.nodes.length+' locations · '+s.edges.length+' roads';mstEdges=s.showMst?s.mstEdges:[];selection();draw()}
 function esc(x){return String(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function show(d){document.getElementById('title').textContent=d.title||'Routewise';document.getElementById('message').textContent=(d.message||'')+(d.visitingOrder?' Visiting order: '+d.visitingOrder.join(' → '):'');let h='';if(d.rows)h='<table class="table"><thead><tr><th>Algorithm</th><th>Nodes</th><th>Distance</th><th>Average time</th></tr></thead><tbody>'+d.rows.map(r=>'<tr><td>'+esc(r.name)+'</td><td>'+r.explored+'</td><td>'+esc(r.distance)+'</td><td>'+esc(r.time)+'</td></tr>').join('')+'</tbody></table>';document.getElementById('extra').innerHTML=h}
-async function action(b){const compareButton=b.act==='compare'?document.getElementById('compare'):null;if(compareButton){compareButton.disabled=true;compareButton.textContent='Comparing…'}try{const d=await api('/api/action',b);if(b.act==='road'||b.act==='reset'||b.act==='city'){route=[];explored=[]}if(d.state)setState(d.state);if(d.path){route=d.path;explored=d.exploredNodes||[];progress=0;animation=0}if(d.end!==undefined){end=d.end;selection()}if(d.mstEdges)mstEdges=d.mstEdges;show(d);draw()}catch(e){show({title:'Action unavailable',message:e.message||'Please select the required locations and try again.'})}finally{if(compareButton){compareButton.disabled=false;compareButton.textContent='Compare algorithms'}}}
+function show(d){
+  document.getElementById('title').textContent=d.title||'Routewise';
+  document.getElementById('message').textContent=(d.message||'')+(d.visitingOrder?' Visiting order: '+d.visitingOrder.join(' → '):'');
+  let h='';
+  if(d.rows)h='<div class="compare-routes">'+d.rows.map((r,i)=>'<article class="compare-route"><div class="compare-route-head"><strong>'+esc(r.name)+'</strong><span>'+r.explored+' nodes · '+esc(r.distance)+' · '+esc(r.time)+'</span></div><p>'+esc((r.pathNames||[]).join(' → ')||'No route')+'</p><button class="btn soft route-preview" data-route-index="'+i+'">Show route on map</button></article>').join('')+'</div>';
+  document.getElementById('extra').innerHTML=h;
+  document.querySelectorAll('[data-route-index]').forEach(button=>button.onclick=()=>{
+    const row=d.rows[Number(button.dataset.routeIndex)];
+    if(!row)return;
+    route=row.path||[];explored=row.exploredNodes||[];progress=0;animation=0;
+    document.getElementById('title').textContent=row.name+' route';
+    document.getElementById('message').textContent=(row.pathNames||[]).length?(row.pathNames.join(' → ')+' · '+row.distance+' · '+row.explored+' nodes explored.'):'No route is available for this algorithm.';
+    draw();
+  });
+}
+async function action(b){
+  const compareButton=b.act==='compare'?document.getElementById('compare'):null;
+  if(compareButton){compareButton.disabled=true;compareButton.textContent='Comparing…'}
+  try{
+    const d=await api('/api/action',b);
+    if(b.act==='road'||b.act==='reset'||b.act==='city'){route=[];explored=[]}
+    if(b.act==='compare'){route=[];explored=[];progress=0}
+    if(d.state)setState(d.state);
+    if(d.path){route=d.path;explored=d.exploredNodes||[];progress=0;animation=0}
+    if(d.end!==undefined){end=d.end;selection()}
+    if(d.mstEdges)mstEdges=d.mstEdges;
+    show(d);draw();
+  }catch(e){show({title:'Action unavailable',message:e.message||'Please select the required locations and try again.'})}
+  finally{if(compareButton){compareButton.disabled=false;compareButton.textContent='Compare algorithms'}}
+}
 function choose(id,stop){if(stop){if(stops.includes(id))stops=stops.filter(x=>x!==id);else if(id===start||id===end){show({title:'Start and destination stay fixed',message:'Choose a different location for a trip stop.'});return}else if(stops.length>=8){show({title:'Stop limit reached',message:'A multi-stop trip supports up to 8 stops.'});return}else stops.push(id)}else if(start<0)start=id;else if(end<0&&id!==start)end=id;else{start=id;end=-1;stops=[]}route=[];explored=[];selection();draw();show({title:stop?'Trip stops updated':'Locations selected',message:'Start: '+(start<0?'—':state.nodes[start].name)+' · Destination: '+(end<0?'—':state.nodes[end].name)+' · Stops: '+stops.length+'. '+(stop?'Click more locations while stop selection is on, then choose Multi-stop trip.':'Select an algorithm when both are set.')})}
 function fit(){const r=canvas.getBoundingClientRect(),d=window.devicePixelRatio||1;if(canvas.width!==Math.round(r.width*d)||canvas.height!==Math.round(r.height*d)){canvas.width=Math.round(r.width*d);canvas.height=Math.round(r.height*d);ctx.setTransform(d,0,0,d,0,0)}return{w:r.width,h:r.height}}
 function transform(){const a=fit(),s=Math.min((a.w-50)/900,(a.h-50)/620);return{w:a.w,h:a.h,s:s,x:(a.w-900*s)/2,y:(a.h-620*s)/2}}
